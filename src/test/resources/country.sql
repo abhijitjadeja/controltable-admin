@@ -1,0 +1,1 @@
+create table country(code char(2), name varchar(400));
