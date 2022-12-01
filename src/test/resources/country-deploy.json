@@ -1,0 +1,6 @@
+{
+    "name" : "country",
+    "type" : "L",
+    "version" : "1",
+    "largeTableSql" : "create table country(code char(2), name varchar(400))"
+}

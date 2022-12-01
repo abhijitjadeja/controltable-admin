@@ -22,12 +22,12 @@ public class Deployer {
     private final TableDeployer tableDeployer;
 
     public Deployer(String deployLocation, String undeployLocation, String jsonLocation,
-            ControltableMetadataRepository repository,TableDeployer tableDeployer) {
+            ControltableMetadataRepository repository, TableDeployer tableDeployer) {
         this.deployLocationPath = Path.of(deployLocation);
         this.undeployLocationPath = Path.of(undeployLocation);
         this.jsonLocationPath = Path.of(jsonLocation);
         this.repository = repository;
-        this.tableDeployer=tableDeployer;
+        this.tableDeployer = tableDeployer;
     }
 
     public void deploy() throws IOException {
@@ -39,27 +39,26 @@ public class Deployer {
         }
     }
 
-    private ControltableMetadata fileToMetadata(Path file) throws IOException {
+    public Deployment fileToDeployment(Path file) throws IOException {
         String jsonDeployment = Files.readString(file, StandardCharsets.UTF_8);
-        Deployment deployment = parseDeployment(jsonDeployment);
-        return new ControltableMetadata(
-                deployment.getName(), deployment.getType(),
-                null, deployment.getVersion());
+        return parseDeployment(jsonDeployment);
     }
 
     public void deployFile(Path file) {
         try {
-            ControltableMetadata metadata = fileToMetadata(file);
+            Deployment deployment = fileToDeployment(file);
+            ControltableMetadata metadata = new ControltableMetadata(
+                    deployment.getName(), deployment.getType(),
+                    null, deployment.getVersion());
             repository.save(metadata);
 
-            if (metadata.isLargeControlTable()){
-                //lookfordeploy.sql
-                Path sqlFile = Path.of(metadata.getName()+"-deploy.sql");
-                String createTableDeploySql = Files.readString(sqlFile);
-                tableDeployer.deploy(metadata.getName(), createTableDeploySql);
-                //load json to relational table
-            }
-            else {
+            if (metadata.isLargeControlTable()) {
+                // lookfordeploy.sql
+                // Path sqlFile = Path.of(metadata.getName()+"-deploy.sql");
+                deployment.getOptionalLargeTableSql()
+                        .ifPresent(largeTableSql -> tableDeployer.deploy(metadata.getName(), largeTableSql));
+                // load json to relational table
+            } else {
                 Path fileName = file.getFileName();
                 Path destination = jsonLocationPath.resolve(fileName);
                 log.info("deploying file " + file + " to " + destination);
@@ -91,8 +90,12 @@ public class Deployer {
 
     public void undeployFile(Path file) {
         try {
-            repository.delete(fileToMetadata(file));
-             
+            Deployment deployment = fileToDeployment(file);
+            ControltableMetadata metadata = new ControltableMetadata(
+                    deployment.getName(), deployment.getType(),
+                    null, deployment.getVersion());
+            repository.delete(metadata);
+
         } catch (Exception e) {
             log.error("undeploy failed for " + file, e);
         }
